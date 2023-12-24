@@ -3,6 +3,7 @@ import keyboard
 from time import sleep
 from functools import partial
 from random import choice, randint
+from collections import deque
 
 
 class Cell:
@@ -14,21 +15,17 @@ class Cell:
         # содержимое ячейки
         self.content = content
 
-    def __bool__(self) -> bool:
-        """
-        False, если в ячейки пуста(имеет значение #)
-        True в противном случае.
-        """
-        return self.content != self.default
-
 
 class Snake:
-    def __init__(self, points: list[list]):
+    def __init__(self, points: list[tuple]):
         # координаты точек змейки
-        self.points = points
+        self.points = deque(points)
 
     def __iter__(self):
         yield from self.points
+
+    def __len__(self) -> int:
+        return len(self.points)
 
     def grow(self, x: int, y: int) -> None:
         """
@@ -36,15 +33,15 @@ class Snake:
         Добавляет в список points новый кортеж с
         координатами точки.
         """
-        self.points.insert(0, [x, y])
+        self.points.appendleft((x, y))
 
-    def del_last_point(self) -> list:
+    def del_last_point(self) -> tuple:
         """
         Удаляет последнюю точку в списке координат
         тела змеи. Это нужно для создания эффекта
         движения змейки по полю.
         """
-        return self.points.pop(-1)
+        return self.points.pop()
 
 
 class Field:
@@ -68,7 +65,6 @@ class Field:
             self.apples_points.add((x, y))
         # вставляем яблочки
         for x, y in self.apples_points:
-            print(x, y, len(self.field))
             self.field[x][y] = Cell(content=Cell.apple)
 
         # объект змейки
@@ -130,7 +126,8 @@ class Field:
         elif self.x_head > self.x_len - 1:
             self.x_head = 0
 
-        # добавляем в новую часть змейки
+        # добавляем новую часть змейки
+        # для имитация её движения
         self.snake.grow(self.x_head, self.y_head)
 
         # если змейка скушала яблоко, то удалять хвост не нужно
@@ -155,13 +152,9 @@ class GameManager:
     """
     def __init__(self):
         # создаём объект игрового поля
-        self.s = Snake(
-            [
-                [1, 1],
-                [1, 2],
-            ]
+        self.field = Field(
+            snake=Snake([(1, 1), (1, 2)])
         )
-        self.f = Field(snake=self.s)
 
         # кнопки и направления
         self.keys_directs = {
@@ -191,16 +184,15 @@ class GameManager:
 
     def play(self) -> None:
         """Запускает игровой цикл"""
-        while self.f.game_status() == 'game':
+        while self.field.game_status() == 'game':
             os.system('cls')
-            print(self.direction)
-            self.f.move_snake(self.direction)
-            self.f.show()
+            self.field.move_snake(self.direction)
+            self.field.show()
             sleep(self.delay)
 
-        if self.f.game_status() == 'win':
+        if self.field.game_status() == 'win':
             print('\t\t\t\tТы победил!')
-        elif self.f.game_status() == 'gameover':
+        elif self.field.game_status() == 'gameover':
             print('\t\t\t\tТы проиграл!')
 
 
