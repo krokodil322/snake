@@ -1,9 +1,12 @@
 import os
 import keyboard
+import pickle
 from time import sleep
 from functools import partial
 from random import choice, randint
 from collections import deque
+from copy import deepcopy
+from datetime import datetime
 
 
 class Cell:
@@ -55,6 +58,9 @@ class Field:
         # игровое поле
         self.field = [[Cell() for _ in range(y_len)] for _ in range(x_len)]
 
+        # объект змейки
+        self.snake = snake
+
         # генерим кол-во яблочек
         self.apples = randint(round(x_len / 2), x_len)
         # множество координат яблочек
@@ -62,13 +68,12 @@ class Field:
         # генерим коорды яблочек
         while len(self.apples_points) != self.apples:
             x, y = randint(0, self.x_len - 1), randint(0, self.y_len - 1)
-            self.apples_points.add((x, y))
+            if (x, y) not in self.snake.points:
+                self.apples_points.add((x, y))
         # вставляем яблочки
         for x, y in self.apples_points:
             self.field[x][y] = Cell(content=Cell.apple)
 
-        # объект змейки
-        self.snake = snake
 
         # координата головы
         self.x_head, self.y_head = self.snake.points[0]
@@ -127,7 +132,7 @@ class Field:
             self.x_head = 0
 
         # добавляем новую часть змейки
-        # для имитация её движения
+        # для имитации её движения
         self.snake.grow(self.x_head, self.y_head)
 
         # если змейка скушала яблоко, то удалять хвост не нужно
@@ -138,7 +143,8 @@ class Field:
         else:
             self.apples -= 1
             # условие победы
-            if self.apples == 0:
+            # на всякий поставил <=
+            if self.apples <= 0:
                 self.is_win = True
 
         # вставляем по координатам символ змейки в field
@@ -151,10 +157,11 @@ class GameManager:
     Класс отвечающий за управление
     """
     def __init__(self):
+        # на всяки пожарный создадим объект змейки
+        self.snake = Snake([(1, 1), (1, 2)])
+
         # создаём объект игрового поля
-        self.field = Field(
-            snake=Snake([(1, 1), (1, 2)])
-        )
+        self.field = Field(snake=self.snake)
 
         # кнопки и направления
         self.keys_directs = {
@@ -176,24 +183,109 @@ class GameManager:
         # задержка перехода между ячейками
         self.delay = 0.2
 
+        # для сохранения сессии
+        self.session = {
+            'field': deepcopy(self.field),
+            'delay': deepcopy(self.delay),
+            'iter_key': []
+        }
+
+        # название папки с логами
+        self.logs_dir = 'logs'
+
     def __set_direction(self, direction: str):
         """
         Меняет направление движения змейки.
         Возможно будет перенесён в класс Snake"""
         self.direction = direction
 
-    def play(self) -> None:
-        """Запускает игровой цикл"""
+    def play(self, save_logs: bool = True) -> None:
+        """
+        Запускает игровой цикл
+        save_logs: bool - сохранять ли логи сессии
+        """
+        iter_key = 0
         while self.field.game_status() == 'game':
             os.system('cls')
+            self.session['iter_key'].append(
+                (iter_key, deepcopy(self.direction))
+            )
             self.field.move_snake(self.direction)
             self.field.show()
+            print(self.field.game_status())
+            print(self.field.apples)
             sleep(self.delay)
+            iter_key += 1
 
         if self.field.game_status() == 'win':
-            print('\t\t\t\tТы победил!')
+            print('Ты победил!')
         elif self.field.game_status() == 'gameover':
-            print('\t\t\t\tТы проиграл!')
+            print('Ты проиграл!')
+
+        if save_logs:
+            # сохраняем логи сессии
+            self.logs()
+
+    def logs(self) -> None:
+        """
+        Записывается весь путь пройденный
+        змейкой в виде кол-ва итераций и
+        нажатых игороком кнопок за весь матч
+        """
+        try:
+            os.mkdir(self.logs_dir)
+        except FileExistsError:
+            pass
+
+        now = datetime.now().strftime('%d.%m.%Y %H-%M-%S')
+        with open(f'{self.logs_dir}/{now}.pkl', 'wb') as file:
+            pickle.dump(self.session, file)
+
+    def show_repeat(self) -> None:
+        """
+        Показывает на экране уже отыгранную сессию.
+        Информацию о сессии берёт из папки logs
+        """
+        files = os.listdir(self.logs_dir)
+        if len(files) == 0:
+            print('Игровых сессий не найдено.')
+            return None
+
+        for index, filename in enumerate(files, 1):
+            print(f'{index}. {filename}')
+
+        filename = None
+        status = True
+        while status:
+            index = None
+            try:
+                index = int(input('Введи номер сессии которую хочешь пересмотреть: '))
+            except TypeError:
+                print(f'\tИндекс должен быть числом(int)!')
+
+            while index:
+                try:
+                    print(f'Введённый индекс: {index}')
+                    filename = files[index - 1]
+                    status = False
+                    break
+                except IndexError:
+                    print('Файла с таким номером не существует!')
+                    index = None
+
+        with open(f'{self.logs_dir}/{filename}', 'rb') as file:
+            session = pickle.load(file)
+
+        if session:
+            self.field = session['field']
+            self.delay = session['delay']
+
+            for _, direction in session['iter_key']:
+                os.system('cls')
+                self.__set_direction(direction)
+                self.field.move_snake(self.direction)
+                self.field.show()
+                sleep(self.delay)
 
 
 if __name__ == '__main__':

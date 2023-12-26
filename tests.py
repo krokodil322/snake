@@ -1,7 +1,8 @@
+import keyboard
+
 from objects import *
 
 import unittest
-from copy import deepcopy
 
 
 class CellTest(unittest.TestCase):
@@ -74,16 +75,19 @@ class FieldTest(unittest.TestCase):
     def test_generate_apples(self):
         """
         Тест атрибуты field класса Field
-        Проверяем генерацию ябочек в поле
+        Проверяем генерацию яблочек в поле
         """
-        apples = 0
-        for row in self.field.field:
-            for cell in row:
-                if cell.content == Cell.apple:
-                    apples += 1
-        self.assertTrue(
-            self.field.apples == apples
-        )
+        for _ in range(100):
+            self.snake = Snake([(1, 1), (1, 2)])
+            self.field = Field(self.snake)
+            apples = 0
+            for row in self.field.field:
+                for cell in row:
+                    if cell.content == Cell.apple:
+                        apples += 1
+            self.assertTrue(
+                self.field.apples == apples
+            )
 
     def test_game_status(self):
         """Тест метода game_status класса Field"""
@@ -248,7 +252,9 @@ class FieldTest(unittest.TestCase):
             )
 
 
-
+class TestGameManager(unittest.TestCase):
+    def setUp(self) -> None:
+        self.game = GameManager()
 
 
 
