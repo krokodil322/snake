@@ -7,12 +7,14 @@ from random import choice, randint
 from collections import deque
 from copy import deepcopy
 from datetime import datetime
+from typing import Optional
 
 
 class Cell:
     default = '.'
     apple = 'A'
     snake = '0'
+    let = '#'
 
     def __init__(self, content: str = default):
         # содержимое ячейки
@@ -20,9 +22,9 @@ class Cell:
 
 
 class Snake:
-    def __init__(self, points: list[tuple]):
+    def __init__(self, start_points: list[tuple]):
         # координаты точек змейки
-        self.points = deque(points)
+        self.points = deque(start_points)
 
     def __iter__(self):
         yield from self.points
@@ -48,7 +50,39 @@ class Snake:
 
 
 class Field:
-    def __init__(self, snake: Snake, x_len: int = 16, y_len: int = 16):
+    """
+    Класс описывающий игровое поле.
+
+    Стандартное поле 16x16 и его ориентация:
+
+                    y_len
+    0 ----------------------------------> y, col
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    |   . . . . . . . . . . . . . . . .
+    V
+    x, row
+    """
+
+    def __init__(
+        self,
+        snake: Snake,
+        x_len: int = 16,
+        y_len: int = 16
+    ):
         # длина по вертикали
         self.x_len = x_len
 
@@ -62,18 +96,16 @@ class Field:
         self.snake = snake
 
         # генерим кол-во яблочек
-        self.apples = randint(round(x_len / 2), x_len)
-        # множество координат яблочек
-        self.apples_points = set()
-        # генерим коорды яблочек
-        while len(self.apples_points) != self.apples:
-            x, y = randint(0, self.x_len - 1), randint(0, self.y_len - 1)
-            if (x, y) not in self.snake.points:
-                self.apples_points.add((x, y))
-        # вставляем яблочки
-        for x, y in self.apples_points:
-            self.field[x][y] = Cell(content=Cell.apple)
+        middle = round((x_len + y_len) / 2)
+        self.apples = randint(round(middle / 2), middle)
 
+        # вставляем яблочки старая механика
+        # теперь яблочки вставляются по очереди
+        # for x, y in self.apples_points:
+        #     self.field[x][y] = Cell(content=Cell.apple)
+
+        x, y = self.__generate_apple_point()
+        self.field[x][y] = Cell(content=Cell.apple)
 
         # координата головы
         self.x_head, self.y_head = self.snake.points[0]
@@ -83,6 +115,13 @@ class Field:
         # True, если игрок проиграл, False если победил или игра продолжается
         self.is_gameover = False
 
+    def __generate_apple_point(self) -> tuple:
+        while True:
+            x, y = randint(0, self.x_len - 1), randint(0, self.y_len - 1)
+            if (y, x) not in self.snake \
+               and self.field[y][x] != Cell.let:
+                return y, x
+
     def game_status(self) -> str:
         if self.is_win:
             return 'win'
@@ -91,7 +130,18 @@ class Field:
         else:
             return 'game'
 
-    def show(self, width: str = 1 * ' ', height: str = '\n') -> None:
+    def __str__(self) -> str:
+        string = ''
+        for row in self.field:
+            string += ''.join(map(
+                lambda cell: cell.content, row)) + '\n'
+        return string
+
+    def show(
+            self,
+            width: str = 1 * ' ',
+            height: str = '\n'
+    ) -> None:
         """
         Выводит на экран содержимое поля
         width - символ между столбцами
@@ -103,11 +153,49 @@ class Field:
                 print(cell.content, end=width)
             print(height, end='')
 
-    def move_snake(self, direction: str):
+    def set_field_by_sample(
+            self,
+            sample: str,
+            apples: int
+    ) -> None:
+        """
+        Устанавливает новые параметры field,
+        apples_points, apples по списку field.
+        """
+        sample = list(map(list, sample.split('\n')))
+        self.field = []
+        self.apples_points = set()
+        for r_index, row in enumerate(filter(None, sample)):
+            self.field.append([])
+            for c_index, cell in enumerate(
+                    filter(lambda char: char != ' ', row)
+            ):
+                if cell == Cell.apple:
+                    # исключаем случай когда пытаемся
+                    # вставить змейку в ячейку с яблоком
+                    for x, y in self.snake:
+                        if (c_index, r_index) == (x, y):
+                            raise ValueError(
+                                f'Змейка не может заспавниться в точке {(x, y)}\n'
+                                f'Ибо в этой точке спавнится яблоко'
+                            )
+                    self.apples_points.add((r_index, c_index))
+                    self.field[r_index].append(
+                        Cell(content=Cell.default)
+                    )
+                else:
+                    self.field[r_index].append(
+                        Cell(content=cell)
+                    )
+        self.apples = len(self.apples_points)
+        self.__insert_apple()
+
+    def move_snake(self, direction: str) -> None:
         """
         Пересчитывает координаты в зависимости
         от нажатой клавиши.
         direction - это направление движения змейки.
+
         """
         # инкремент/декремент в зависимости от нажатой кнопки
         if direction == 'UP':
@@ -135,33 +223,56 @@ class Field:
         # для имитации её движения
         self.snake.grow(self.x_head, self.y_head)
 
+        head_content = self.field[self.y_head][self.x_head].content
+
         # если змейка скушала яблоко, то удалять хвост не нужно
-        if self.field[self.y_head][self.x_head].content != Cell.apple:
+        if head_content == Cell.default:
             x_del, y_del = self.snake.del_last_point()
             # устанавливает значок поля вместо точки змейки
             self.field[y_del][x_del].content = Cell.default
-        else:
-            self.apples -= 1
+        elif head_content == Cell.apple:
             # условие победы
             # на всякий поставил <=
             if self.apples <= 0:
                 self.is_win = True
+            # вставляем следующее яблочко
+            self.__insert_apple()
+        elif head_content in (Cell.let, Cell.snake):
+            # условие поражения
+            self.is_gameover = True
+            return None
 
         # вставляем по координатам символ змейки в field
         for x, y in self.snake:
             self.field[y][x].content = Cell.snake
 
+    def __insert_apple(self) -> None:
+        """Вставляет одно яблоко в поле field"""
+        if self.apples > 0:
+            x, y = self.__generate_apple_point()
+            self.field[x][y] = Cell(content=Cell.apple)
+            self.apples -= 1
+
 
 class GameManager:
     """
-    Класс отвечающий за управление
+    Класс отвечающий за взаимодействие с игроком
     """
-    def __init__(self):
+    # всего есть 5 уровней
+    ALL_LEVELS = (1, 2, 3, 4, 5)
+
+    def __init__(
+            self,
+            snake: Snake,
+            field: Field,
+            delay: float = 0.2,
+            direction: Optional[str] = None,
+    ):
         # на всяки пожарный создадим объект змейки
-        self.snake = Snake([(1, 1), (1, 2)])
+        self.snake = snake
 
         # создаём объект игрового поля
-        self.field = Field(snake=self.snake)
+        self.field = field
 
         # кнопки и направления
         self.keys_directs = {
@@ -171,17 +282,17 @@ class GameManager:
             ('d', 'right'): 'RIGHT',
         }
 
-        # рандомно дёргаем начальное направление змейки
-        self.direction = choice(tuple(self.keys_directs.values()))
+        if not direction:
+            # рандомно дёргаем начальное направление змейки
+            self.direction = choice(tuple(self.keys_directs.values()))
+        else:
+            self.direction = direction
 
-        # регаем кнопки управления
-        for keys, direction in self.keys_directs.items():
-            event = partial(self.__set_direction, direction)
-            for key in keys:
-                keyboard.add_hotkey(key, event)
+        # регаем кнопки
+        self.set_keys()
 
         # задержка перехода между ячейками
-        self.delay = 0.2
+        self.delay = delay
 
         # для сохранения сессии
         self.session = {
@@ -193,27 +304,41 @@ class GameManager:
         # название папки с логами
         self.logs_dir = 'logs'
 
-    def __set_direction(self, direction: str):
+    def set_keys(self) -> None:
+        """Регает кнопки управления"""
+        for keys, direction in self.keys_directs.items():
+            event = partial(self.__set_direction, direction)
+            for key in keys:
+                keyboard.add_hotkey(key, event)
+
+    def __set_direction(self, direction: str) -> None:
         """
         Меняет направление движения змейки.
-        Возможно будет перенесён в класс Snake"""
-        self.direction = direction
+        Возможно будет перенесён в класс Snake
+        """
+
+        horizontal = ('UP', 'DOWN')
+        vertical = ('LEFT', 'RIGHT')
+
+        if self.direction in horizontal and direction in vertical \
+           or self.direction in vertical and direction in horizontal:
+            self.direction = direction
 
     def play(self, save_logs: bool = True) -> None:
         """
         Запускает игровой цикл
         save_logs: bool - сохранять ли логи сессии
         """
+        self.set_keys()
         iter_key = 0
         while self.field.game_status() == 'game':
             os.system('cls')
+            print(self.field.apples)
+            self.field.move_snake(self.direction)
             self.session['iter_key'].append(
                 (iter_key, deepcopy(self.direction))
             )
-            self.field.move_snake(self.direction)
             self.field.show()
-            print(self.field.game_status())
-            print(self.field.apples)
             sleep(self.delay)
             iter_key += 1
 
@@ -226,20 +351,47 @@ class GameManager:
             # сохраняем логи сессии
             self.logs()
 
-    def logs(self) -> None:
+    def logs(self, filename: Optional[str] = None) -> None:
         """
         Записывается весь путь пройденный
         змейкой в виде кол-ва итераций и
         нажатых игороком кнопок за весь матч
+
+        filename - имя файла с кэшэм сессии.
+        Создаётся автоматически по дате и времени
+        окончания сессии, но можно указать своё
+        значение.
         """
         try:
             os.mkdir(self.logs_dir)
         except FileExistsError:
             pass
 
-        now = datetime.now().strftime('%d.%m.%Y %H-%M-%S')
-        with open(f'{self.logs_dir}/{now}.pkl', 'wb') as file:
+        if not filename:
+            filename = datetime.now().strftime('%d.%m.%Y %H-%M-%S')
+
+        with open(f'{self.logs_dir}/{filename}.pkl', 'wb') as file:
             pickle.dump(self.session, file)
+
+    @staticmethod
+    def get_user_index(dir: list) -> str:
+        """
+        Принимает данные от юзера
+        Возвращает введённую строку, если она число.
+        """
+        while True:
+            index = None
+            try:
+                index = int(input('Введи номер: '))
+            except TypeError:
+                print(f'\tИндекс должен быть числом(int)!')
+
+            while index:
+                try:
+                    return dir[index - 1]
+                except IndexError:
+                    print('Файла с таким номером не существует!')
+                    break
 
     def show_repeat(self) -> None:
         """
@@ -254,24 +406,7 @@ class GameManager:
         for index, filename in enumerate(files, 1):
             print(f'{index}. {filename}')
 
-        filename = None
-        status = True
-        while status:
-            index = None
-            try:
-                index = int(input('Введи номер сессии которую хочешь пересмотреть: '))
-            except TypeError:
-                print(f'\tИндекс должен быть числом(int)!')
-
-            while index:
-                try:
-                    print(f'Введённый индекс: {index}')
-                    filename = files[index - 1]
-                    status = False
-                    break
-                except IndexError:
-                    print('Файла с таким номером не существует!')
-                    index = None
+        filename = self.get_user_index(dir=files)
 
         with open(f'{self.logs_dir}/{filename}', 'rb') as file:
             session = pickle.load(file)
@@ -287,7 +422,55 @@ class GameManager:
                 self.field.show()
                 sleep(self.delay)
 
+    @staticmethod
+    def get_game_by_lvl(lvl: int) -> 'GameManager':
+        """
+        Возвращает объект(лвл) класса GameManager из папки lvls
+        по указанному уровню
+        """
+        with open(f'lvls/{str(lvl)}.pkl', 'rb') as file:
+            return pickle.load(file)
+
+    @classmethod
+    def create_lvl(
+            cls,
+            lvl: int,
+            snake: Snake,
+            field: Field,
+            delay: float = 0.2,
+            direction: Optional[str] = None,
+    ) -> None:
+        """
+        Метод для создания нового лвла. По заданным
+        харам создаёт объект класса GameManager и
+        добавляет его в папку lvls в формате .pkl
+        """
+        if lvl not in cls.ALL_LEVELS:
+            raise ValueError(
+                f'Все возможные номера лвлов: {cls.ALL_LEVELS}'
+                f'Твой лвл не входит в этот список: {lvl}'
+            )
+
+        try:
+            os.mkdir('lvls')
+        except FileExistsError:
+            pass
+
+        with open(f'lvls/{str(lvl)}.pkl', 'wb') as file:
+            obj_lvl = cls(
+                snake=snake,
+                field=field,
+                delay=delay,
+                direction=direction,
+            )
+            pickle.dump(obj_lvl, file)
+
 
 if __name__ == '__main__':
-    manager = GameManager()
-    manager.play()
+    # snake = Snake(start_points=[(1, 1), (1, 2)])
+    # field = Field(snake=snake)
+    # manager = GameManager(snake=snake, field=field)
+    # manager.play()
+
+    # GameManager.create_lvl(1)
+    pass
