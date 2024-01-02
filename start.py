@@ -2,8 +2,8 @@ from objects import *
 
 import os
 
-status = input('Игра - 1, Компания - 2, Смотреть повтор - 3. Ввод: ')
 
+status = input('Игра - 1, Компания - 2, Смотреть повтор - 3. Ввод: ')
 if status == '1':
     while True:
         snake = Snake(start_points=[(1, 1), (1, 2)])

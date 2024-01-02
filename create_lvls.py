@@ -21,7 +21,7 @@ lvl_1 = """
     .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 """
 
-snake = Snake(start_points=[(1, 1), (1, 2), (1, 3)])
+snake = Snake(start_points=[(1, 1), (2, 1), (3, 1)])
 field = Field(snake=snake)
 
 field.set_field_by_sample(
@@ -34,6 +34,7 @@ GameManager.create_lvl(
     snake=snake,
     field=field,
     direction='DOWN',
+    delay=0.1
 )
 # ====================================================================
 lvl_2 = """
@@ -55,7 +56,7 @@ lvl_2 = """
     #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #
 """
 
-snake = Snake(start_points=[(3, 12), (3, 13), (3, 14), (3, 15)])
+snake = Snake(start_points=[(12, 3), (13, 3), (14, 3), (15, 3)])
 field = Field(snake=snake)
 
 field.set_field_by_sample(
@@ -89,7 +90,7 @@ lvl_3 = """
     .  .  .  .  .  .  .  .  .  #  .  .  .  .  .  .
 """
 
-snake = Snake(start_points=[(1, 2), (1, 3), (1, 4)])
+snake = Snake(start_points=[(2, 1), (3, 1), (4, 1)])
 field = Field(snake=snake)
 
 field.set_field_by_sample(
@@ -124,7 +125,7 @@ lvl_4 = """
     #  .  .  .  .  .  .  .  .  .  .  .  .  .  .  #
 """
 
-snake = Snake(start_points=[(7, 11), (7, 10), (7, 9)])
+snake = Snake(start_points=[(11, 7), (10, 7), (9, 7)])
 field = Field(snake=snake)
 
 field.set_field_by_sample(
@@ -157,7 +158,7 @@ lvl_5 = """
     .  .  .  .  .  .  .  .  .  .  .  .  .  #  .  .
     .  #  .  .  .  .  .  #  .  .  .  .  .  .  .  .
 """
-snake = Snake(start_points=[(3, 12), (3, 13), (3, 14), (3, 15)])
+snake = Snake(start_points=[(12, 3), (13, 3), (14, 3), (15, 3)])
 field = Field(snake=snake)
 
 field.set_field_by_sample(

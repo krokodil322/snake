@@ -32,13 +32,13 @@ class Snake:
     def __len__(self) -> int:
         return len(self.points)
 
-    def grow(self, x: int, y: int) -> None:
+    def grow(self, row: int, col: int) -> None:
         """
         Отвечает за рост змейки.
         Добавляет в список points новый кортеж с
         координатами точки.
         """
-        self.points.appendleft((x, y))
+        self.points.appendleft((row, col))
 
     def del_last_point(self) -> tuple:
         """
@@ -81,7 +81,7 @@ class Field:
         self,
         snake: Snake,
         x_len: int = 16,
-        y_len: int = 16
+        y_len: int = 16,
     ):
         # длина по вертикали
         self.x_len = x_len
@@ -99,16 +99,20 @@ class Field:
         middle = round((x_len + y_len) / 2)
         self.apples = randint(round(middle / 2), middle)
 
+        # сохраняем коорды яблочек в список(для перепросмотра сессии)
+        self.apples_points = deque([])
+
         # вставляем яблочки старая механика
         # теперь яблочки вставляются по очереди
         # for x, y in self.apples_points:
         #     self.field[x][y] = Cell(content=Cell.apple)
 
-        x, y = self.__generate_apple_point()
-        self.field[x][y] = Cell(content=Cell.apple)
+        # вставляем первое яблочко
+        row, col = self.__generate_apple_point()
+        self.field[row][col].content = Cell.apple
 
         # координата головы
-        self.x_head, self.y_head = self.snake.points[0]
+        self.row_head, self.col_head = self.snake.points[0]
 
         # True, если игрок победил. False, если игрок проиграл или игра продолжается
         self.is_win = False
@@ -117,10 +121,10 @@ class Field:
 
     def __generate_apple_point(self) -> tuple:
         while True:
-            x, y = randint(0, self.x_len - 1), randint(0, self.y_len - 1)
-            if (y, x) not in self.snake \
-               and self.field[y][x] != Cell.let:
-                return y, x
+            row, col = randint(0, self.x_len - 1), randint(0, self.y_len - 1)
+            if (row, col) not in self.snake \
+               and self.field[row][col].content != Cell.let:
+                return row, col
 
     def game_status(self) -> str:
         if self.is_win:
@@ -159,12 +163,12 @@ class Field:
             apples: int
     ) -> None:
         """
-        Устанавливает новые параметры field,
-        apples_points, apples по списку field.
+        Создаёт новое поле field
+        на основании шаблона sample
         """
         sample = list(map(list, sample.split('\n')))
         self.field = []
-        self.apples_points = set()
+        self.apples = apples
         for r_index, row in enumerate(filter(None, sample)):
             self.field.append([])
             for c_index, cell in enumerate(
@@ -173,13 +177,12 @@ class Field:
                 if cell == Cell.apple:
                     # исключаем случай когда пытаемся
                     # вставить змейку в ячейку с яблоком
-                    for x, y in self.snake:
-                        if (c_index, r_index) == (x, y):
+                    for row_snake, col_snake in self.snake:
+                        if (r_index, c_index) == (row_snake, col_snake):
                             raise ValueError(
-                                f'Змейка не может заспавниться в точке {(x, y)}\n'
+                                f'Змейка не может заспавниться в точке {(row_snake, col_snake)}\n'
                                 f'Ибо в этой точке спавнится яблоко'
                             )
-                    self.apples_points.add((r_index, c_index))
                     self.field[r_index].append(
                         Cell(content=Cell.default)
                     )
@@ -187,71 +190,82 @@ class Field:
                     self.field[r_index].append(
                         Cell(content=cell)
                     )
-        self.apples = len(self.apples_points)
         self.__insert_apple()
+        self.apples_points.clear()
 
-    def move_snake(self, direction: str) -> None:
+    def move_snake(
+            self,
+            direction: str,
+            gen_apple: bool = True,
+    ) -> None:
         """
         Пересчитывает координаты в зависимости
         от нажатой клавиши.
         direction - это направление движения змейки.
-
         """
         # инкремент/декремент в зависимости от нажатой кнопки
         if direction == 'UP':
-            self.y_head -= 1
+            self.row_head -= 1
         elif direction == 'DOWN':
-            self.y_head += 1
+            self.row_head += 1
         elif direction == 'LEFT':
-            self.x_head -= 1
+            self.col_head -= 1
         elif direction == 'RIGHT':
-            self.x_head += 1
+            self.col_head += 1
 
         # если змейка вышла за пределы строк
-        if self.y_head < 0:
-            self.y_head = self.y_len - 1
-        elif self.y_head > self.y_len - 1:
-            self.y_head = 0
+        if self.row_head < 0:
+            self.row_head = self.x_len - 1
+        elif self.row_head > self.x_len - 1:
+            self.row_head = 0
 
         # если змейка вышла за пределы столбцов
-        if self.x_head < 0:
-            self.x_head = self.x_len - 1
-        elif self.x_head > self.x_len - 1:
-            self.x_head = 0
+        if self.col_head < 0:
+            self.col_head = self.y_len - 1
+        elif self.col_head > self.y_len - 1:
+            self.col_head = 0
 
         # добавляем новую часть змейки
         # для имитации её движения
-        self.snake.grow(self.x_head, self.y_head)
+        self.snake.grow(self.row_head, self.col_head)
 
-        head_content = self.field[self.y_head][self.x_head].content
+        head_content = self.field[self.row_head][self.col_head].content
 
         # если змейка скушала яблоко, то удалять хвост не нужно
         if head_content == Cell.default:
-            x_del, y_del = self.snake.del_last_point()
+            row_del, col_del = self.snake.del_last_point()
             # устанавливает значок поля вместо точки змейки
-            self.field[y_del][x_del].content = Cell.default
+            self.field[row_del][col_del].content = Cell.default
         elif head_content == Cell.apple:
+            self.apples -= 1
             # условие победы
             # на всякий поставил <=
             if self.apples <= 0:
                 self.is_win = True
             # вставляем следующее яблочко
-            self.__insert_apple()
+            if gen_apple:
+                self.__insert_apple()
+            else:
+                try:
+                    row, col = self.apples_points.popleft()
+                    self.field[row][col].content = Cell.apple
+                except IndexError:
+                    pass
         elif head_content in (Cell.let, Cell.snake):
             # условие поражения
             self.is_gameover = True
             return None
 
         # вставляем по координатам символ змейки в field
-        for x, y in self.snake:
-            self.field[y][x].content = Cell.snake
+        for row, col in self.snake:
+            self.field[row][col].content = Cell.snake
 
     def __insert_apple(self) -> None:
         """Вставляет одно яблоко в поле field"""
         if self.apples > 0:
-            x, y = self.__generate_apple_point()
-            self.field[x][y] = Cell(content=Cell.apple)
-            self.apples -= 1
+            row, col = self.__generate_apple_point()
+            self.apples_points.append((row, col))
+            self.field[row][col].content = Cell.apple
 
 
 class GameManager:
@@ -298,7 +312,8 @@ class GameManager:
         self.session = {
             'field': deepcopy(self.field),
             'delay': deepcopy(self.delay),
-            'iter_key': []
+            'iter_key': [],
+            'apples_points': deque([]),
         }
 
         # название папки с логами
@@ -333,11 +348,10 @@ class GameManager:
         iter_key = 0
         while self.field.game_status() == 'game':
             os.system('cls')
-            print(self.field.apples)
-            self.field.move_snake(self.direction)
             self.session['iter_key'].append(
                 (iter_key, deepcopy(self.direction))
             )
+            self.field.move_snake(self.direction)
             self.field.show()
             sleep(self.delay)
             iter_key += 1
@@ -346,6 +360,10 @@ class GameManager:
             print('Ты победил!')
         elif self.field.game_status() == 'gameover':
             print('Ты проиграл!')
+
+        self.session['apples_points'] = deepcopy(
+            self.field.apples_points
+        )
 
         if save_logs:
             # сохраняем логи сессии
@@ -413,12 +431,19 @@ class GameManager:
 
         if session:
             self.field = session['field']
+            self.field.apples_points = session['apples_points']
             self.delay = session['delay']
 
             for _, direction in session['iter_key']:
                 os.system('cls')
                 self.__set_direction(direction)
-                self.field.move_snake(self.direction)
+                # устанавливаем режим когда яблоки генерить не нужно
+                # тогда move_snake будет их пытаться дёргать из
+                # списка self.apples_points
+                self.field.move_snake(
+                    self.direction,
+                    gen_apple=False,
+                )
                 self.field.show()
                 sleep(self.delay)
 
